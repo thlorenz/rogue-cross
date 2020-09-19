@@ -1,0 +1,8 @@
+[package]
+name = "ch01-hellorust"
+version = "0.1.0"
+authors = ["Thorsten Lorenz <thlorenz@gmx.de>"]
+edition = "2018"
+
+[dependencies]
+crossterm = "0.17.7"
