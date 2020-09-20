@@ -71,7 +71,7 @@ impl<'a> System<'a> for LeftWalker {
     }
 }
 
-const ROWS: i32 = 50;
+const ROWS: i32 = 25;
 const COLS: i32 = 80;
 
 fn try_move_player(dx: i32, dy: i32, ecs: &mut World) {
@@ -254,6 +254,7 @@ fn main() -> Result<()> {
     execute!(
         stdout,
         terminal::SetTitle("Rougelike Tutorial"),
+        terminal::Clear(ClearType::All),
         cursor::Hide,
     )?;
     draw_terminal_frame(&mut stdout, COLS as u16, ROWS as u16)?;
@@ -271,7 +272,7 @@ fn main() -> Result<()> {
 
     gs.ecs
         .create_entity()
-        .with(Position { x: 40, y: 25 })
+        .with(Position { x: 40, y: 12 })
         .with(Renderable {
             glyph: '@',
             fg: Color::Yellow,
@@ -283,7 +284,7 @@ fn main() -> Result<()> {
     for i in 0..10 {
         gs.ecs
             .create_entity()
-            .with(Position { x: i * 7, y: 20 })
+            .with(Position { x: i * 7, y: 10 })
             .with(Renderable {
                 glyph: '☺',
                 fg: Color::Red,
@@ -295,5 +296,11 @@ fn main() -> Result<()> {
 
     main_loop(&mut stdout, &mut gs)?;
 
+    execute!(
+        stdout,
+        terminal::Clear(ClearType::All),
+        cursor::MoveTo(0, 0),
+        cursor::Show,
+    )?;
     disable_raw_mode()
 }
