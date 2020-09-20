@@ -79,8 +79,8 @@ fn try_move_player(dx: i32, dy: i32, ecs: &mut World) {
     let mut players = ecs.write_storage::<Player>();
 
     for (_, pos) in (&mut players, &mut positions).join() {
-        pos.x = min(COLS - 1, max(0, pos.x + dx));
-        pos.y = min(ROWS - 1, max(0, pos.y + dy));
+        pos.x = min(COLS - 2, max(0, pos.x + dx));
+        pos.y = min(ROWS - 2, max(0, pos.y + dy));
     }
 }
 
@@ -125,13 +125,7 @@ impl GameState for State {
         self.run_systems();
 
         // Render
-        queue!(
-            w,
-            ResetColor,
-            terminal::Clear(ClearType::All),
-            terminal::SetTitle("Rougelike Tutorial"),
-            cursor::Hide,
-        )?;
+        cls(w, COLS as u16, ROWS as u16)?;
 
         let positions = self.ecs.read_storage::<Position>();
         let renderables = self.ecs.read_storage::<Renderable>();
@@ -144,9 +138,10 @@ impl GameState for State {
                 None => queue!(w, ResetColor),
                 Some(color) => queue!(w, SetBackgroundColor(color)),
             }?;
+            // Offset coords by 1 since on terminal frame is at 0
             queue!(
                 w,
-                cursor::MoveTo(pos.x as u16, pos.y as u16),
+                cursor::MoveTo(pos.x as u16 + 1, pos.y as u16 + 1),
                 SetForegroundColor(render.fg),
                 Print(render.glyph)
             )?;
@@ -157,12 +152,75 @@ impl GameState for State {
     }
 }
 
+const UPPER_LEFT_CORNER: char = '╔';
+const UPPER_RIGHT_CORNER: char = '╗';
+const LOWER_LEFT_CORNER: char = '╚';
+const LOWER_RIGHT_CORNER: char = '╝';
+const VERTICAL_WALL: char = '║';
+const HORIZONTAL_WALL: char = '═';
+
+fn draw_terminal_frame<W>(w: &mut W, ncols: u16, nrows: u16) -> Result<()>
+where
+    W: Write,
+{
+    // Corners
+    queue!(
+        w,
+        cursor::MoveTo(0, 0),
+        Print(UPPER_LEFT_CORNER),
+        cursor::MoveTo(ncols, 0),
+        Print(UPPER_RIGHT_CORNER),
+        cursor::MoveTo(ncols, nrows),
+        Print(LOWER_RIGHT_CORNER),
+        cursor::MoveTo(0, nrows),
+        Print(LOWER_LEFT_CORNER),
+    )?;
+
+    for col in 1..ncols {
+        queue!(
+            w,
+            cursor::MoveTo(col, 0),
+            Print(HORIZONTAL_WALL),
+            cursor::MoveTo(col, nrows),
+            Print(HORIZONTAL_WALL)
+        )?
+    }
+    for row in 1..nrows {
+        queue!(
+            w,
+            cursor::MoveTo(0, row),
+            Print(VERTICAL_WALL),
+            cursor::MoveTo(ncols, row),
+            Print(VERTICAL_WALL)
+        )?
+    }
+    Ok(())
+}
+
+/// Clear everything except the terminal frame to minimize flicker
+fn cls<W>(w: &mut W, ncols: u16, nrows: u16) -> Result<()>
+where
+    W: Write,
+{
+    queue!(w, ResetColor)?;
+    for row in 1..nrows {
+        queue!(
+            w,
+            cursor::MoveTo(1, row),
+            terminal::Clear(ClearType::UntilNewLine),
+            // We cannot avoid clearing the right most column, so we just redraw that afterwards
+            cursor::MoveTo(ncols, row),
+            Print(VERTICAL_WALL)
+        )?
+    }
+    Ok(())
+}
+
 fn main_loop<W>(w: &mut W, gs: &mut State) -> Result<()>
 where
     W: Write,
 {
     loop {
-        // TODO: draw terminal frame
         // TODO: draw frame rate just outside upper right corner.
         gs.event = None;
         let now = SystemTime::now();
@@ -193,6 +251,13 @@ fn main() -> Result<()> {
     enable_raw_mode()?;
 
     let mut stdout = stdout();
+    execute!(
+        stdout,
+        terminal::SetTitle("Rougelike Tutorial"),
+        cursor::Hide,
+    )?;
+    draw_terminal_frame(&mut stdout, COLS as u16, ROWS as u16)?;
+
     let mut gs = State {
         ecs: World::new(),
         event: None,
