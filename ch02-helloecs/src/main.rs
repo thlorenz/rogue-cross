@@ -47,7 +47,7 @@ struct Position {
 struct Renderable {
     glyph: char,
     fg: Color,
-    bg: Color,
+    bg: Option<Color>,
 }
 
 #[derive(Component)]
@@ -140,14 +140,15 @@ impl GameState for State {
             if 0 > pos.x || pos.x >= COLS || 0 > pos.y || pos.y >= ROWS {
                 continue;
             }
+            match render.bg {
+                None => queue!(w, ResetColor),
+                Some(color) => queue!(w, SetBackgroundColor(color)),
+            }?;
             queue!(
                 w,
                 cursor::MoveTo(pos.x as u16, pos.y as u16),
-                // TODO: make bg an option and None to mean terminal background
-                ResetColor,
-                // SetBackgroundColor(render.bg),
                 SetForegroundColor(render.fg),
-                Print(render.glyph),
+                Print(render.glyph)
             )?;
         }
 
@@ -209,7 +210,7 @@ fn main() -> Result<()> {
         .with(Renderable {
             glyph: '@',
             fg: Color::Yellow,
-            bg: Color::Black,
+            bg: None,
         })
         .with(Player {})
         .build();
@@ -221,7 +222,7 @@ fn main() -> Result<()> {
             .with(Renderable {
                 glyph: '☺',
                 fg: Color::Red,
-                bg: Color::Black,
+                bg: None,
             })
             .with(LeftMover {})
             .build();
