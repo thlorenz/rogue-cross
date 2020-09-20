@@ -1,22 +1,10 @@
 [package]
-name = "rogue-cross"
+name = "ch02-helloecs"
 version = "0.1.0"
 authors = ["Thorsten Lorenz <thlorenz@gmx.de>"]
 edition = "2018"
-
-[features]
-log = []
 
 [dependencies]
 crossterm = "0.17.7"
 specs = "0.16.1"
 specs-derive = "0.4.1"
-
-[workspace]
-members = [ 
-  "ch01-hellorust",
-  "ch02-helloecs"
-]
-
-[profile.dev]
-opt-level = 1
