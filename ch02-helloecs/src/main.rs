@@ -11,6 +11,9 @@ use crossterm::{
     Result,
 };
 
+const FRAMES_PER_SEC: u64 = 60;
+const MS_PER_FRAME: u64 = 1_000 / FRAMES_PER_SEC;
+
 // Explicitly importing each spec part separately, even from the prelude to better understand
 // where they come from.
 // In future chapters we'll just import prelude::*.
@@ -23,7 +26,9 @@ use std::{
     cmp::max,
     cmp::min,
     io::{stdout, Write},
+    thread::sleep,
     time::Duration,
+    time::SystemTime,
 };
 
 pub trait GameState: 'static {
@@ -159,11 +164,19 @@ where
         // TODO: draw terminal frame
         // TODO: draw frame rate just outside upper right corner.
         gs.event = None;
-        if poll(Duration::from_millis(100))? {
+        let now = SystemTime::now();
+        if poll(Duration::from_millis(MS_PER_FRAME))? {
             gs.event = Some(read()?);
-            // TODO: Make sure that if we get input early that we wait the extra time to get
-            // a constant frame rate.
+
+            // Ensure consistent framerate even if we get user input at the top of the frame
+            let elapsed = now.elapsed().expect("Could not get elapsed time");
+            let ms = elapsed.as_millis() as u64;
+            if ms < MS_PER_FRAME {
+                let remaining = MS_PER_FRAME - ms;
+                sleep(Duration::from_millis(remaining))
+            }
         }
+
         gs.tick(w)?;
 
         if gs.should_exit {
