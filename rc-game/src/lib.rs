@@ -55,6 +55,7 @@ where
     fn default() -> Self {
         let mut ecs = World::new();
         ecs.register::<Position>();
+        ecs.register::<Renderable>();
         ecs.register::<Player>();
         let game_state = GameState {
             cols: 80,

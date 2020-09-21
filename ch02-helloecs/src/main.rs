@@ -44,7 +44,6 @@ impl<'a> System<'a> for LeftWalker {
 struct Ch02Game {}
 impl Game for Ch02Game {
     fn init(&self, _: &GameState, ecs: &mut World) -> Result<()> {
-        ecs.register::<Renderable>();
         ecs.register::<LeftMover>();
 
         ecs.create_entity()
