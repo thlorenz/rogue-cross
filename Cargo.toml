@@ -17,7 +17,7 @@ members = [
   "rc-game",
   "ch01-hellorust",
   "ch02-helloecs",
-  "ch02-helloecs-using-lib"
+  "ch02-helloecs-nolib"
 ]
 
 [profile.dev]

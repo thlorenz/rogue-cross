@@ -1,5 +1,5 @@
 [package]
-name = "ch02-helloecs"
+name = "ch02-helloecs-nolib"
 version = "0.1.0"
 authors = ["Thorsten Lorenz <thlorenz@gmx.de>"]
 edition = "2018"
@@ -8,4 +8,3 @@ edition = "2018"
 crossterm = "0.17.7"
 specs = "0.16.1"
 specs-derive = "0.4.1"
-rc-game = { path = "../rc-game" } 
