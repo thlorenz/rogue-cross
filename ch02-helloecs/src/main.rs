@@ -1,6 +1,8 @@
 use crossterm::{style::Color, Result};
 
-use rc_game::{Game, Player, Position, Renderable, RogueCrossGame, GAME_COLS, GAME_ROWS};
+use rc_game::{
+    Game, GameState, Player, Position, Renderable, RogueCrossGame, GAME_COLS, GAME_ROWS,
+};
 use specs::{prelude::*, Builder, World, WorldExt};
 use specs_derive::*;
 
@@ -41,7 +43,7 @@ impl<'a> System<'a> for LeftWalker {
 #[derive(Default)]
 struct Ch02Game {}
 impl Game for Ch02Game {
-    fn init(&self, ecs: &mut World) -> Result<()> {
+    fn init(&self, _: &GameState, ecs: &mut World) -> Result<()> {
         ecs.register::<Renderable>();
         ecs.register::<LeftMover>();
 
@@ -69,13 +71,13 @@ impl Game for Ch02Game {
         Ok(())
     }
 
-    fn update(&mut self, ecs: &World) -> Result<()> {
+    fn update(&mut self, _: &GameState, ecs: &World) -> Result<()> {
         let mut lw = LeftWalker {};
         lw.run_now(ecs);
         Ok(())
     }
 
-    fn render(&self, _: &mut std::io::Stdout) -> Result<()> {
+    fn render(&self, _: &GameState, _: &mut std::io::Stdout) -> Result<()> {
         Ok(())
     }
 }

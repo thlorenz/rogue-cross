@@ -9,6 +9,7 @@ const LOWER_RIGHT_CORNER: char = '╝';
 const VERTICAL_WALL: char = '║';
 const HORIZONTAL_WALL: char = '═';
 
+/// terminal frame is drawn around what we consider the terminal
 pub fn draw_terminal_frame<W>(w: &mut W, ncols: u16, nrows: u16) -> Result<()>
 where
     W: Write,
@@ -18,29 +19,29 @@ where
         w,
         cursor::MoveTo(0, 0),
         Print(UPPER_LEFT_CORNER),
-        cursor::MoveTo(ncols, 0),
+        cursor::MoveTo(ncols + 1, 0),
         Print(UPPER_RIGHT_CORNER),
-        cursor::MoveTo(ncols, nrows),
+        cursor::MoveTo(ncols + 1, nrows + 1),
         Print(LOWER_RIGHT_CORNER),
-        cursor::MoveTo(0, nrows),
+        cursor::MoveTo(0, nrows + 1),
         Print(LOWER_LEFT_CORNER),
     )?;
 
-    for col in 1..ncols {
+    for col in 1..ncols + 1 {
         queue!(
             w,
             cursor::MoveTo(col, 0),
             Print(HORIZONTAL_WALL),
-            cursor::MoveTo(col, nrows),
+            cursor::MoveTo(col, nrows + 1),
             Print(HORIZONTAL_WALL)
         )?
     }
-    for row in 1..nrows {
+    for row in 1..nrows + 1 {
         queue!(
             w,
             cursor::MoveTo(0, row),
             Print(VERTICAL_WALL),
-            cursor::MoveTo(ncols, row),
+            cursor::MoveTo(ncols + 1, row),
             Print(VERTICAL_WALL)
         )?
     }
@@ -53,13 +54,13 @@ where
     W: Write,
 {
     queue!(w, ResetColor)?;
-    for row in 1..nrows {
+    for row in 1..nrows + 1 {
         queue!(
             w,
             cursor::MoveTo(1, row),
             terminal::Clear(terminal::ClearType::UntilNewLine),
             // We cannot avoid clearing the right most column, so we just redraw that afterwards
-            cursor::MoveTo(ncols, row),
+            cursor::MoveTo(ncols + 1, row),
             Print(VERTICAL_WALL)
         )?
     }

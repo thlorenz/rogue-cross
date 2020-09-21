@@ -51,20 +51,24 @@ pub const GAME_COLS: u16 = 80;
 pub const GAME_ROWS: u16 = 25;
 
 pub trait Game: 'static + Default {
-    fn init(&self, ecs: &mut World) -> Result<()>;
-    fn update(&mut self, ecs: &World) -> Result<()>;
-    fn render(&self, _: &mut Stdout) -> Result<()>;
+    fn init(&self, gs: &GameState, ecs: &mut World) -> Result<()>;
+    fn update(&mut self, gs: &GameState, ecs: &World) -> Result<()>;
+    fn render(&self, gs: &GameState, out: &mut Stdout) -> Result<()>;
+}
+
+pub struct GameState {
+    cols: u16,
+    rows: u16,
+    event: Option<Event>,
 }
 
 pub struct RogueCrossGame<TGame>
 where
     TGame: Game,
 {
-    cols: u16,
-    rows: u16,
     title: String,
+    game_state: GameState,
     ecs: World,
-    event: Option<Event>,
     stdout: Stdout,
     millis_per_frame: u64,
     should_exit: bool,
@@ -79,12 +83,15 @@ where
         let mut ecs = World::new();
         ecs.register::<Position>();
         ecs.register::<Player>();
-        Self {
+        let game_state = GameState {
             cols: 80,
             rows: 25,
-            title: "Rogue Cross Game".to_string(),
-            ecs,
             event: None,
+        };
+        Self {
+            title: "Rogue Cross Game".to_string(),
+            game_state,
+            ecs,
             stdout: stdout(),
             millis_per_frame: MS_PER_FRAME,
             should_exit: false,
@@ -125,8 +132,13 @@ where
             terminal::Clear(ClearType::All),
             cursor::Hide,
         )?;
-        self.game.init(&mut self.ecs)?;
-        draw_terminal_frame(&mut self.stdout, self.cols as u16, self.rows as u16)
+        self.game.init(&self.game_state, &mut self.ecs)?;
+
+        draw_terminal_frame(
+            &mut self.stdout,
+            self.game_state.cols as u16,
+            self.game_state.rows as u16,
+        )
     }
 
     fn deinit(&mut self) -> Result<()> {
@@ -140,9 +152,9 @@ where
     }
 
     fn poll(&mut self) -> Result<()> {
-        self.event = None;
+        self.game_state.event = None;
         if poll(Duration::from_millis(self.millis_per_frame))? {
-            self.event = Some(read()?);
+            self.game_state.event = Some(read()?);
         }
         Ok(())
     }
@@ -163,13 +175,21 @@ where
     fn render(&mut self) -> Result<()> {
         let out = &mut self.stdout;
 
-        cls(out, self.cols as u16, self.rows as u16)?;
+        cls(
+            out,
+            self.game_state.cols as u16,
+            self.game_state.rows as u16,
+        )?;
 
         let positions = self.ecs.read_storage::<Position>();
         let renderables = self.ecs.read_storage::<Renderable>();
 
         for (pos, render) in (&positions, &renderables).join() {
-            if 0 > pos.x || pos.x >= self.cols as i32 || 0 > pos.y || pos.y >= self.rows as i32 {
+            if 0 > pos.x
+                || pos.x >= self.game_state.cols as i32
+                || 0 > pos.y
+                || pos.y >= self.game_state.rows as i32
+            {
                 continue;
             }
             match render.bg {
@@ -177,6 +197,10 @@ where
                 Some(color) => queue!(out, SetBackgroundColor(color)),
             }?;
             // Offset coords by 1 to account for terminal frame
+            // NOTE: not a huge fan of having to adjust pos by 1 since this also has to be
+            // applied inside the Game::render methods.
+            // Not changing this yet as it might turn out that all the rendering is done inside
+            // this lib.
             queue!(
                 out,
                 cursor::MoveTo(pos.x as u16 + 1, pos.y as u16 + 1),
@@ -185,7 +209,7 @@ where
             )?;
         }
 
-        self.game.render(out)?;
+        self.game.render(&self.game_state, out)?;
 
         out.flush()?;
         Ok(())
@@ -196,12 +220,12 @@ where
     //
     fn update(&mut self) -> Result<()> {
         self.process_input();
-        self.game.update(&mut self.ecs)?;
+        self.game.update(&self.game_state, &mut self.ecs)?;
         Ok(())
     }
 
     fn process_input(&mut self) {
-        match self.event {
+        match self.game_state.event {
             Some(Event::Key(KeyEvent {
                 modifiers: KeyModifiers::NONE,
                 code,
@@ -234,9 +258,9 @@ where
 
     fn clamp_position(&self, pos: &mut Position) {
         let minx = 0;
-        let maxx = self.cols as i32 - 2;
+        let maxx = self.game_state.cols as i32 - 1;
         let miny = 0;
-        let maxy = self.rows as i32 - 2;
+        let maxy = self.game_state.rows as i32 - 1;
         pos.clamp(minx, maxx, miny, maxy)
     }
 }
