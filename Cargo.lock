@@ -59,6 +59,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ch02-helloecs-using-lib"
+version = "0.1.0"
+dependencies = [
+ "crossterm",
+ "rc-game",
+ "specs",
+ "specs-derive",
+]
+
+[[package]]
 name = "cloudabi"
 version = "0.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -360,6 +370,15 @@ dependencies = [
  "crossbeam-utils",
  "lazy_static",
  "num_cpus",
+]
+
+[[package]]
+name = "rc-game"
+version = "0.1.0"
+dependencies = [
+ "crossterm",
+ "specs",
+ "specs-derive",
 ]
 
 [[package]]

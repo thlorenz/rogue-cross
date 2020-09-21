@@ -14,8 +14,10 @@ specs-derive = "0.4.1"
 
 [workspace]
 members = [ 
+  "rc-game",
   "ch01-hellorust",
-  "ch02-helloecs"
+  "ch02-helloecs",
+  "ch02-helloecs-using-lib"
 ]
 
 [profile.dev]
