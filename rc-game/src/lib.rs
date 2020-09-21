@@ -1,48 +1,20 @@
+mod components;
+mod offset;
 mod rc_terminal;
-use self::rc_terminal::*;
+use crate::rc_terminal::*;
+pub use components::*;
+use offset::Offset;
 
 use crossterm::{
     cursor, event::poll, event::read, event::Event, event::KeyCode, event::KeyEvent,
-    event::KeyModifiers, execute, queue, style::Color, style::Print, style::ResetColor,
+    event::KeyModifiers, execute, queue, style::Print, style::ResetColor,
     style::SetBackgroundColor, style::SetForegroundColor, terminal, Result,
 };
 
 use specs::prelude::*;
-use specs_derive::*;
 use terminal::{disable_raw_mode, enable_raw_mode, ClearType};
 
-use std::{
-    cmp::{max, min},
-    io::stdout,
-    io::Stdout,
-    io::Write,
-    thread::sleep,
-    time::Duration,
-    time::SystemTime,
-};
-
-#[derive(Component)]
-pub struct Position {
-    pub x: i32,
-    pub y: i32,
-}
-
-impl Position {
-    fn clamp(&mut self, minx: i32, maxx: i32, miny: i32, maxy: i32) {
-        self.x = min(maxx, max(minx, self.x));
-        self.y = min(maxy, max(miny, self.y));
-    }
-}
-
-#[derive(Component, Debug)]
-pub struct Player {}
-
-#[derive(Component)]
-pub struct Renderable {
-    pub glyph: char,
-    pub fg: Color,
-    pub bg: Option<Color>,
-}
+use std::{io::stdout, io::Stdout, io::Write, thread::sleep, time::Duration, time::SystemTime};
 
 const FRAMES_PER_SEC: u64 = 60;
 const MS_PER_FRAME: u64 = 1_000 / FRAMES_PER_SEC;
@@ -70,6 +42,7 @@ where
     game_state: GameState,
     ecs: World,
     stdout: Stdout,
+    origin: Offset,
     millis_per_frame: u64,
     should_exit: bool,
     game: TGame,
@@ -88,12 +61,15 @@ where
             rows: 25,
             event: None,
         };
+        let stdout: Stdout = stdout();
+        let origin = Offset::new(1, 1);
         Self {
             title: "Rogue Cross Game".to_string(),
             game_state,
             ecs,
-            stdout: stdout(),
             millis_per_frame: MS_PER_FRAME,
+            stdout,
+            origin,
             should_exit: false,
             game: Default::default(),
         }
@@ -112,9 +88,12 @@ where
 
             self.poll()?;
             self.update()?;
+
             if self.should_exit {
                 break;
             }
+            // execute!(self.stdout, Print(format!("{}\n", self.origin)))?;
+            self.center()?;
             self.render()?;
 
             self.enforce_framerate(&loop_start);
@@ -132,13 +111,18 @@ where
             terminal::Clear(ClearType::All),
             cursor::Hide,
         )?;
+
+        self.center()?;
         self.game.init(&self.game_state, &mut self.ecs)?;
 
         draw_terminal_frame(
             &mut self.stdout,
+            &self.origin,
             self.game_state.cols as u16,
             self.game_state.rows as u16,
-        )
+        )?;
+        self.stdout.flush()?;
+        Ok(())
     }
 
     fn deinit(&mut self) -> Result<()> {
@@ -172,11 +156,31 @@ where
     //
     // Rendering
     //
+    fn center(&mut self) -> Result<()> {
+        let (w, h) = terminal::size()?;
+        let margin_x = if w > self.game_state.cols {
+            (w - self.game_state.cols) / 2
+        } else {
+            0
+        };
+
+        let margin_y = if h > self.game_state.rows {
+            (h - self.game_state.rows) / 2
+        } else {
+            0
+        };
+
+        // Place origin inside terminal frame
+        self.origin = Offset::new(margin_x + 1, margin_y + 1);
+        Ok(())
+    }
+
     fn render(&mut self) -> Result<()> {
         let out = &mut self.stdout;
 
         cls(
             out,
+            &self.origin,
             self.game_state.cols as u16,
             self.game_state.rows as u16,
         )?;
@@ -196,14 +200,15 @@ where
                 None => queue!(out, ResetColor),
                 Some(color) => queue!(out, SetBackgroundColor(color)),
             }?;
-            // Offset coords by 1 to account for terminal frame
+            //
             // NOTE: not a huge fan of having to adjust pos by 1 since this also has to be
             // applied inside the Game::render methods.
             // Not changing this yet as it might turn out that all the rendering is done inside
             // this lib.
+            let render_pos = Offset::from(pos).translate(&self.origin);
             queue!(
                 out,
-                cursor::MoveTo(pos.x as u16 + 1, pos.y as u16 + 1),
+                cursor::MoveTo(render_pos.x as u16, render_pos.y as u16),
                 SetForegroundColor(render.fg),
                 Print(render.glyph)
             )?;
