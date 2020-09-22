@@ -6,6 +6,8 @@ using [crossterm](https://github.com/crossterm-rs/crossterm) to run them directl
 Find the source code of the original implementation using rltk
 [here](https://github.com/thebracket/rustrogueliketutorial).
 
+![[](./assets/ch03.gif)](./assets/ch03.gif)
+
 ## FAQ
 
 > Why not use rltk _aka_ bracket-lib using the crossterm backend?
