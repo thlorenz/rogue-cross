@@ -1,0 +1,12 @@
+[package]
+name = "ch03-walkmap"
+version = "0.1.0"
+authors = ["Thorsten Lorenz <thlorenz@gmx.de>"]
+edition = "2018"
+
+[dependencies]
+crossterm = "0.17.7"
+specs = "0.16.1"
+specs-derive = "0.4.1"
+rc-game = { path = "../rc-game" } 
+rand = "0.7.3"

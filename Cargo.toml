@@ -17,7 +17,8 @@ members = [
   "rc-game",
   "ch01-hellorust",
   "ch02-helloecs",
-  "ch02-helloecs-nolib"
+  "ch02-helloecs-nolib",
+  "ch03-walkmap",
 ]
 
 [profile.dev]

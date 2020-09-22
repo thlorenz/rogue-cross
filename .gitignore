@@ -1,2 +1,4 @@
+/.idea
 /target
 *.rltk.rs
+**/.idea/

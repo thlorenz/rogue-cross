@@ -16,7 +16,7 @@ use terminal::{disable_raw_mode, enable_raw_mode, ClearType};
 
 use std::{io::stdout, io::Stdout, io::Write, thread::sleep, time::Duration, time::SystemTime};
 
-const FRAMES_PER_SEC: u64 = 60;
+const FRAMES_PER_SEC: u64 = 10;
 const MS_PER_FRAME: u64 = 1_000 / FRAMES_PER_SEC;
 
 pub const GAME_COLS: u16 = 80;
@@ -201,7 +201,12 @@ where
                 None => queue!(out, ResetColor),
                 Some(color) => queue!(out, SetBackgroundColor(color)),
             }?;
-            //
+            // TODO: consider optimization options:
+            // 1. no cls if all squares are redrawn
+            // 2. keep internal buffer of what we drew to the screen and only draw it again if
+            //    it is different now
+            // 3. switch outputs?
+
             // NOTE: not a huge fan of having to adjust pos by 1 since this also has to be
             // applied inside the Game::render methods.
             // Not changing this yet as it might turn out that all the rendering is done inside
