@@ -1,22 +1,23 @@
 mod components;
 mod offset;
 mod rc_terminal;
+mod renderer;
 use crate::rc_terminal::*;
 pub use components::*;
 use offset::Offset;
 
 use crossterm::{
     cursor, event::poll, event::read, event::Event, event::KeyCode, event::KeyEvent,
-    event::KeyModifiers, execute, queue, style::Print, style::ResetColor,
-    style::SetBackgroundColor, style::SetForegroundColor, terminal, Result,
+    event::KeyModifiers, execute, terminal, Result,
 };
 
+use renderer::Renderer;
 use specs::prelude::*;
 use terminal::{disable_raw_mode, enable_raw_mode, ClearType};
 
 use std::{io::stdout, io::Stdout, io::Write, thread::sleep, time::Duration, time::SystemTime};
 
-const FRAMES_PER_SEC: u64 = 10;
+const FRAMES_PER_SEC: u64 = 60;
 const MS_PER_FRAME: u64 = 1_000 / FRAMES_PER_SEC;
 
 pub const GAME_COLS: u16 = 80;
@@ -25,7 +26,6 @@ pub const GAME_ROWS: u16 = 25;
 pub trait Game: 'static + Default {
     fn init(&self, gs: &GameState, ecs: &mut World) -> Result<()>;
     fn update(&mut self, gs: &GameState, ecs: &World) -> Result<()>;
-    fn render(&self, gs: &GameState, out: &mut Stdout) -> Result<()>;
 }
 
 pub struct GameState {
@@ -38,14 +38,24 @@ pub struct RogueCrossGame<TGame>
 where
     TGame: Game,
 {
-    title: String,
-    game_state: GameState,
     ecs: World,
-    stdout: Stdout,
-    origin: Offset,
-    millis_per_frame: u64,
-    should_exit: bool,
     game: TGame,
+    game_state: GameState,
+    millis_per_frame: u64,
+    renderer: Option<Renderer>,
+    should_exit: bool,
+    stdout: Stdout,
+    title: String,
+}
+
+fn centered_origin(cols: u16, rows: u16) -> Result<Offset> {
+    let (w, h) = terminal::size()?;
+    let margin_x = if w > cols { (w - cols) / 2 } else { 0 };
+
+    let margin_y = if h > rows { (h - rows) / 2 } else { 0 };
+
+    // Place origin inside terminal frame
+    Ok(Offset::new(margin_x + 1, margin_y + 1))
 }
 
 impl<TGame> Default for RogueCrossGame<TGame>
@@ -63,16 +73,16 @@ where
             event: None,
         };
         let stdout: Stdout = stdout();
-        let origin = Offset::new(1, 1);
+
         Self {
-            title: "Rogue Cross Game".to_string(),
-            game_state,
             ecs,
-            millis_per_frame: MS_PER_FRAME,
-            stdout,
-            origin,
-            should_exit: false,
             game: Default::default(),
+            game_state,
+            millis_per_frame: MS_PER_FRAME,
+            renderer: None,
+            should_exit: false,
+            stdout,
+            title: "Rogue Cross Game".to_string(),
         }
     }
 }
@@ -93,8 +103,6 @@ where
             if self.should_exit {
                 break;
             }
-            // execute!(self.stdout, Print(format!("{}\n", self.origin)))?;
-            self.center()?;
             self.render()?;
 
             self.enforce_framerate(&loop_start);
@@ -113,15 +121,16 @@ where
             cursor::Hide,
         )?;
 
-        self.center()?;
+        let cols = self.game_state.cols;
+        let rows = self.game_state.rows;
+        let origin = centered_origin(cols, rows)?;
+
+        draw_terminal_frame(&mut self.stdout, &origin, cols as u16, rows as u16)?;
+
+        self.renderer = Some(Renderer::new(origin, cols, rows));
+
         self.game.init(&self.game_state, &mut self.ecs)?;
 
-        draw_terminal_frame(
-            &mut self.stdout,
-            &self.origin,
-            self.game_state.cols as u16,
-            self.game_state.rows as u16,
-        )?;
         self.stdout.flush()?;
         Ok(())
     }
@@ -157,34 +166,9 @@ where
     //
     // Rendering
     //
-    fn center(&mut self) -> Result<()> {
-        let (w, h) = terminal::size()?;
-        let margin_x = if w > self.game_state.cols {
-            (w - self.game_state.cols) / 2
-        } else {
-            0
-        };
-
-        let margin_y = if h > self.game_state.rows {
-            (h - self.game_state.rows) / 2
-        } else {
-            0
-        };
-
-        // Place origin inside terminal frame
-        self.origin = Offset::new(margin_x + 1, margin_y + 1);
-        Ok(())
-    }
-
     fn render(&mut self) -> Result<()> {
         let out = &mut self.stdout;
-
-        cls(
-            out,
-            &self.origin,
-            self.game_state.cols as u16,
-            self.game_state.rows as u16,
-        )?;
+        let renderer = self.renderer.as_mut().unwrap();
 
         let positions = self.ecs.read_storage::<Position>();
         let renderables = self.ecs.read_storage::<Renderable>();
@@ -197,33 +181,10 @@ where
             {
                 continue;
             }
-            match render.bg {
-                None => queue!(out, ResetColor),
-                Some(color) => queue!(out, SetBackgroundColor(color)),
-            }?;
-            // TODO: consider optimization options:
-            // 1. no cls if all squares are redrawn
-            // 2. keep internal buffer of what we drew to the screen and only draw it again if
-            //    it is different now
-            // 3. switch outputs?
-
-            // NOTE: not a huge fan of having to adjust pos by 1 since this also has to be
-            // applied inside the Game::render methods.
-            // Not changing this yet as it might turn out that all the rendering is done inside
-            // this lib.
-            let render_pos = Offset::from(pos).translate(&self.origin);
-            queue!(
-                out,
-                cursor::MoveTo(render_pos.x as u16, render_pos.y as u16),
-                SetForegroundColor(render.fg),
-                Print(render.glyph)
-            )?;
+            renderer.render(pos.x, pos.y, render);
         }
 
-        self.game.render(&self.game_state, out)?;
-
-        out.flush()?;
-        Ok(())
+        renderer.flush(out)
     }
 
     //
@@ -273,5 +234,22 @@ where
         let miny = 0;
         let maxy = self.game_state.rows as i32 - 1;
         pos.clamp(minx, maxx, miny, maxy)
+    }
+}
+
+/// This needs to be called by all games that don't init their own map
+/// that covers the entire background.
+/// If this is not done entities that move will not be cleared from previous positions.
+pub fn init_blank_map(gs: &GameState, ecs: &mut World) {
+    for x in 0..gs.cols {
+        for y in 0..gs.rows {
+            ecs.create_entity()
+                .with(Position {
+                    x: x as i32,
+                    y: y as i32,
+                })
+                .with(Renderable::default())
+                .build();
+        }
     }
 }

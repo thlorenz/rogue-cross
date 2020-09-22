@@ -55,7 +55,8 @@ where
 }
 
 /// Clear everything except the terminal frame to minimize flicker
-pub fn cls<W>(w: &mut W, origin: &Offset, ncols: u16, nrows: u16) -> Result<()>
+/// No longer used since the renderer works without clearing the screen
+fn _cls<W>(w: &mut W, origin: &Offset, ncols: u16, nrows: u16) -> Result<()>
 where
     W: Write,
 {

@@ -20,10 +20,19 @@ impl Position {
 #[derive(Component, Debug)]
 pub struct Player {}
 
-#[derive(Component)]
+#[derive(Component, Clone, PartialEq)]
 pub struct Renderable {
     pub glyph: char,
     pub fg: Color,
     pub bg: Option<Color>,
 }
 
+impl Default for Renderable {
+    fn default() -> Self {
+        Self {
+            glyph: ' ',
+            fg: Color::White,
+            bg: None,
+        }
+    }
+}

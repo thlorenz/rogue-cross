@@ -24,8 +24,8 @@ fn idx_xy(idx: usize) -> (u16, u16) {
 
 fn new_map() -> Vec<TileType> {
     let mut map = vec![TileType::Floor; (GAME_COLS * GAME_ROWS) as usize];
-    // Walls
 
+    // Walls
     for x in 0..GAME_COLS {
         map[xy_idx(x, 0)] = TileType::Wall;
         map[xy_idx(x, GAME_ROWS - 1)] = TileType::Wall;
@@ -97,10 +97,6 @@ impl Game for Ch03Game {
     }
 
     fn update(&mut self, _: &GameState, _: &World) -> Result<()> {
-        Ok(())
-    }
-
-    fn render(&self, _: &GameState, _: &mut std::io::Stdout) -> Result<()> {
         Ok(())
     }
 }
