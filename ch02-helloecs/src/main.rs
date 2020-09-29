@@ -1,9 +1,6 @@
 use crossterm::{style::Color, Result};
 
-use rc_game::{
-    init_blank_map, Game, GameState, Player, Position, Renderable, RogueCrossGame, GAME_COLS,
-    GAME_ROWS,
-};
+use rc_game::{Game, GameState, Position, Renderable, RogueCrossGame, GAME_COLS, GAME_ROWS};
 use specs::{prelude::*, Builder, World, WorldExt};
 use specs_derive::*;
 
@@ -44,20 +41,8 @@ impl<'a> System<'a> for LeftWalker {
 #[derive(Default)]
 struct Ch02Game {}
 impl Game for Ch02Game {
-    fn init(&self, gs: &GameState, ecs: &mut World) -> Result<()> {
-        init_blank_map(gs, ecs);
+    fn init(&self, _gs: &GameState, ecs: &mut World) -> Result<()> {
         ecs.register::<LeftMover>();
-
-        ecs.create_entity()
-            .with(Position { x: 40, y: 12 })
-            .with(Renderable {
-                glyph: '@',
-                fg: Color::Yellow,
-                bg: None,
-            })
-            .with(Player {})
-            .build();
-
         for i in 0..10 {
             ecs.create_entity()
                 .with(Position { x: i * 7, y: 10 })

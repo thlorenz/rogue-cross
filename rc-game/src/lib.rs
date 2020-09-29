@@ -1,14 +1,18 @@
 mod components;
+mod enums;
 mod offset;
 mod rc_terminal;
+mod renderables;
 mod renderer;
 use crate::rc_terminal::*;
 pub use components::*;
-use offset::Offset;
+pub use enums::*;
+pub use offset::Offset;
+use renderables::{renderable_floor, renderable_wall};
 
 use crossterm::{
     cursor, event::poll, event::read, event::Event, event::KeyCode, event::KeyEvent,
-    event::KeyModifiers, execute, terminal, Result,
+    event::KeyModifiers, execute, style::Color, terminal, Result,
 };
 
 use renderer::Renderer;
@@ -23,14 +27,23 @@ const MS_PER_FRAME: u64 = 1_000 / FRAMES_PER_SEC;
 pub const GAME_COLS: u16 = 80;
 pub const GAME_ROWS: u16 = 25;
 
+pub fn create_blank_map(gs: &GameState) -> Vec<TileType> {
+    vec![TileType::Empty; (gs.rows * gs.cols) as usize]
+}
+
+#[allow(unused)]
 pub trait Game: 'static + Default {
-    fn init(&self, gs: &GameState, ecs: &mut World) -> Result<()>;
-    fn update(&mut self, gs: &GameState, ecs: &World) -> Result<()>;
+    fn init(&self, gs: &GameState, ecs: &mut World) -> Result<()> {
+        Ok(())
+    }
+    fn update(&mut self, gs: &GameState, ecs: &World) -> Result<()> {
+        Ok(())
+    }
 }
 
 pub struct GameState {
-    cols: u16,
-    rows: u16,
+    pub cols: u16,
+    pub rows: u16,
     event: Option<Event>,
 }
 
@@ -39,6 +52,7 @@ where
     TGame: Game,
 {
     ecs: World,
+    map: Vec<TileType>,
     game: TGame,
     game_state: GameState,
     millis_per_frame: u64,
@@ -46,6 +60,9 @@ where
     should_exit: bool,
     stdout: Stdout,
     title: String,
+    player_start_position: Offset,
+    built_map: bool,
+    started: bool,
 }
 
 fn centered_origin(cols: u16, rows: u16) -> Result<Offset> {
@@ -66,6 +83,7 @@ where
         let mut ecs = World::new();
         ecs.register::<Position>();
         ecs.register::<Renderable>();
+        ecs.register::<Collider>();
         ecs.register::<Player>();
         let game_state = GameState {
             cols: 80,
@@ -73,16 +91,22 @@ where
             event: None,
         };
         let stdout: Stdout = stdout();
+        let map = create_blank_map(&game_state);
+        let player_start_position = Offset { x: 40, y: 12 };
 
         Self {
             ecs,
+            map,
             game: Default::default(),
             game_state,
+            player_start_position,
             millis_per_frame: MS_PER_FRAME,
             renderer: None,
             should_exit: false,
             stdout,
             title: "Rogue Cross Game".to_string(),
+            built_map: false,
+            started: false,
         }
     }
 }
@@ -91,6 +115,27 @@ impl<TGame> RogueCrossGame<TGame>
 where
     TGame: Game,
 {
+    pub fn build_map(
+        &mut self,
+        create_map: fn(gs: &GameState, player_position: &Offset) -> Vec<TileType>,
+    ) {
+        assert!(!self.started, "Need to build map before starting the game");
+        self.map = create_map(&self.game_state, &self.player_start_position).to_vec();
+        self.built_map = true;
+    }
+
+    pub fn set_player_start(&mut self, pos: Offset) {
+        assert!(
+            !self.started,
+            "Need to set player position before starting the game"
+        );
+        assert!(
+            !self.built_map,
+            "Need to set player position before building the map"
+        );
+        self.player_start_position = pos;
+    }
+
     pub fn start(&mut self) -> Result<()> {
         self.init()?;
 
@@ -112,6 +157,9 @@ where
     }
 
     fn init(&mut self) -> Result<()> {
+        self.init_map_entities();
+        self.init_player();
+
         enable_raw_mode()?;
 
         execute!(
@@ -131,6 +179,7 @@ where
 
         self.game.init(&self.game_state, &mut self.ecs)?;
 
+        self.ecs.maintain();
         self.stdout.flush()?;
         Ok(())
     }
@@ -161,6 +210,41 @@ where
             let remaining = self.millis_per_frame - ms;
             sleep(Duration::from_millis(remaining))
         }
+    }
+
+    fn idx_xy(&self, idx: usize) -> Offset {
+        let x = idx as u16 % self.game_state.cols;
+        let y = idx as u16 / self.game_state.cols;
+        Offset::new(x, y)
+    }
+
+    fn init_map_entities(&mut self) {
+        for (idx, tile) in self.map.iter().enumerate() {
+            let Offset { x, y } = self.idx_xy(idx);
+            let renderable = match tile {
+                TileType::Floor => renderable_floor(),
+                TileType::Wall => renderable_wall(),
+                TileType::Empty => Renderable::default(),
+            };
+            self.ecs
+                .create_entity()
+                .with(Position { x, y })
+                .with(renderable)
+                .build();
+        }
+    }
+
+    fn init_player(&mut self) {
+        self.ecs
+            .create_entity()
+            .with::<Position>((&self.player_start_position).into())
+            .with(Renderable {
+                glyph: '@',
+                fg: Color::Yellow,
+                bg: None,
+            })
+            .with(Player {})
+            .build();
     }
 
     //
@@ -221,9 +305,11 @@ where
 
     fn move_player(&self, dx: i32, dy: i32) {
         let mut positions = self.ecs.write_storage::<Position>();
-        let mut players = self.ecs.write_storage::<Player>();
+        let players = self.ecs.read_storage::<Player>();
 
-        for (_, pos) in (&mut players, &mut positions).join() {
+        let player_positions = (&players, &mut positions).join();
+
+        for (_, pos) in player_positions {
             self.move_by(pos, dx, dy)
         }
     }
@@ -237,19 +323,3 @@ where
     }
 }
 
-/// This needs to be called by all games that don't init their own map
-/// that covers the entire background.
-/// If this is not done entities that move will not be cleared from previous positions.
-pub fn init_blank_map(gs: &GameState, ecs: &mut World) {
-    for x in 0..gs.cols {
-        for y in 0..gs.rows {
-            ecs.create_entity()
-                .with(Position {
-                    x: x as i32,
-                    y: y as i32,
-                })
-                .with(Renderable::default())
-                .build();
-        }
-    }
-}

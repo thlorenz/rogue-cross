@@ -4,7 +4,9 @@ use crossterm::style::Color;
 use specs::prelude::*;
 use specs_derive::*;
 
-#[derive(Component)]
+use crate::Offset;
+
+#[derive(Component, PartialEq)]
 pub struct Position {
     pub x: i32,
     pub y: i32,
@@ -14,6 +16,18 @@ impl Position {
     pub fn clamp(&mut self, minx: i32, maxx: i32, miny: i32, maxy: i32) {
         self.x = min(maxx, max(minx, self.x));
         self.y = min(maxy, max(miny, self.y));
+    }
+}
+
+impl From<&Offset> for Position {
+    fn from(offset: &Offset) -> Self {
+        let Offset { x, y } = *offset;
+        Self { x, y }
+    }
+}
+impl From<Offset> for Position {
+    fn from(offset: Offset) -> Self {
+        (&offset).into()
     }
 }
 
@@ -36,3 +50,6 @@ impl Default for Renderable {
         }
     }
 }
+
+#[derive(Component, Default)]
+pub struct Collider {}
