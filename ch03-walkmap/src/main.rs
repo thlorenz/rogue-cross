@@ -42,7 +42,6 @@ fn create_map(gs: &GameState, player_position: &Offset) -> Vec<TileType> {
 
 fn main() -> Result<()> {
     let mut game: RogueCrossGame<Ch03Game> = Default::default();
-    game.set_player_start(Offset { x: 5, y: 12 });
     game.build_map(create_map);
     game.start()
 }

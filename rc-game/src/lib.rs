@@ -218,6 +218,10 @@ where
         Offset::new(x, y)
     }
 
+    fn xy_idx(&self, x: usize, y: usize) -> usize {
+        (y * self.game_state.cols as usize) + x
+    }
+
     fn init_map_entities(&mut self) {
         for (idx, tile) in self.map.iter().enumerate() {
             let Offset { x, y } = self.idx_xy(idx);
@@ -298,9 +302,18 @@ where
     }
 
     fn move_by(&self, pos: &mut Position, dx: i32, dy: i32) {
-        pos.x += dx;
-        pos.y += dy;
-        self.clamp_position(pos)
+        let x = pos.x + dx;
+        let y = pos.y + dy;
+        let idx = self.xy_idx(x as usize, y as usize);
+        let blocked = match self.map[idx] {
+            TileType::Wall => true,
+            TileType::Empty | TileType::Floor => false,
+        };
+        if !blocked {
+            pos.x = x;
+            pos.y = y;
+            self.clamp_position(pos)
+        }
     }
 
     fn move_player(&self, dx: i32, dy: i32) {
